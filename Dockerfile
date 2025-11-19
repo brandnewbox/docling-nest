@@ -18,14 +18,14 @@ COPY packages/docling/convert/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy function code
-COPY packages/docling/convert/__main__.py .
+COPY packages/docling/convert/__main__.py ./docling_handler.py
 
 # Create a simple Flask wrapper for local testing
 RUN pip install --no-cache-dir flask
 
 # Create a Flask app wrapper
 RUN echo 'from flask import Flask, request, jsonify\n\
-import __main__ as docling_function\n\
+import docling_handler\n\
 \n\
 app = Flask(__name__)\n\
 \n\
@@ -36,7 +36,7 @@ def health():\n\
 @app.route("/convert", methods=["POST"])\n\
 def convert():\n\
     args = request.get_json() or {}\n\
-    result = docling_function.main(args)\n\
+    result = docling_handler.main(args)\n\
     status_code = result.get("statusCode", 200)\n\
     body = result.get("body", result)\n\
     return jsonify(body), status_code\n\
