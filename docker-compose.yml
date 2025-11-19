@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  docling:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      # Mount the source code for development
+      - ./packages/docling/convert/__main__.py:/app/__main__.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
