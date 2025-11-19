@@ -12,10 +12,16 @@ from pathlib import Path
 from typing import Dict, Any
 
 try:
-    from docling.document_converter import DocumentConverter
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
 except ImportError:
     # Fallback for testing without docling installed
     DocumentConverter = None
+    PdfFormatOption = None
+    InputFormat = None
+    PdfPipelineOptions = None
+    EasyOcrOptions = None
 
 
 def main(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,8 +73,15 @@ def main(args: Dict[str, Any]) -> Dict[str, Any]:
                 }
             }
 
-        # Initialize converter
-        converter = DocumentConverter()
+        # Initialize converter with OCR disabled
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = False
+
+        converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+            }
+        )
 
         # Process document
         if source_url:
