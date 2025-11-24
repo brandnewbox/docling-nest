@@ -1,75 +1,73 @@
 # Docling Nest
 
-A DigitalOcean serverless function that exposes the [Docling](https://github.com/docling-project/docling) library for document conversion to markdown.
+An AWS Lambda function that exposes the [Docling](https://github.com/docling-project/docling) library for document conversion to markdown.
 
 ## Features
 
 - Convert documents (PDF, DOCX, etc.) to markdown format
 - Support for both URL-based and base64-encoded document input
 - Run locally with Docker for development and testing
-- Deploy to DigitalOcean Functions with Terraform
+- Deploy as AWS Lambda function with container images
 - Built on IBM Research's Docling library
 
 ## Quick Start
 
 ### Local Development with Docker
 
-1. **Start the local server:**
+1. **Start the local Lambda emulator:**
    ```bash
    docker-compose up --build
    ```
 
 2. **Test the function:**
    ```bash
-   ./test-local.sh
+   ./test_lambda.sh
    ```
 
    Or manually:
    ```bash
-   # Health check
-   curl http://localhost:8080/
-
    # Convert from URL
-   curl -X POST http://localhost:8080/convert \
+   curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
      -H "Content-Type: application/json" \
      -d '{
-       "source_url": "https://arxiv.org/pdf/2408.09869"
+       "body": "{\"source_url\": \"https://arxiv.org/pdf/2408.09869\"}"
      }'
 
    # Convert from base64-encoded document
-   curl -X POST http://localhost:8080/convert \
+   curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
      -H "Content-Type: application/json" \
      -d '{
-       "document": "BASE64_ENCODED_CONTENT",
-       "filename": "document.pdf"
+       "body": "{\"document\": \"BASE64_ENCODED_CONTENT\", \"filename\": \"document.pdf\"}"
      }'
    ```
 
 ## API Reference
 
-### Endpoint: POST /convert
+### Lambda Invocation
 
-Convert a document to markdown format.
+The Lambda function accepts events with the following format (API Gateway proxy integration):
 
 #### Request Body
 
 ```json
 {
-  "source_url": "https://example.com/document.pdf",
-  "document": "base64_encoded_content",
-  "filename": "document.pdf",
-  "extract_tables_as_images": false,
-  "image_resolution_scale": 2
+  "body": "{\"source_url\": \"https://example.com/document.pdf\"}"
 }
 ```
 
-**Parameters:**
+Or for base64-encoded documents:
+
+```json
+{
+  "body": "{\"document\": \"base64_encoded_content\", \"filename\": \"document.pdf\"}"
+}
+```
+
+**Parameters (inside the body JSON):**
 
 - `source_url` (string, optional): URL to the document to convert
 - `document` (string, optional): Base64-encoded document content
 - `filename` (string, optional): Original filename (used when providing base64 content)
-- `extract_tables_as_images` (boolean, optional): Extract tables as images. Default: `false`
-- `image_resolution_scale` (integer, optional): Image resolution scale. Default: `2`
 
 **Note:** Either `source_url` or `document` must be provided.
 
@@ -78,92 +76,100 @@ Convert a document to markdown format.
 **Success (200):**
 ```json
 {
-  "success": true,
-  "markdown": "# Converted Document\n\n...",
-  "metadata": {
-    "num_pages": 10,
-    "source": "https://example.com/document.pdf"
-  }
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  },
+  "body": "{\"success\": true, \"markdown\": \"# Converted Document\\n\\n...\", \"metadata\": {\"num_pages\": 10, \"source\": \"https://example.com/document.pdf\"}}"
 }
 ```
 
 **Error (400/500):**
 ```json
 {
-  "success": false,
-  "error": "Error message",
-  "error_type": "ExceptionType"
+  "statusCode": 400,
+  "body": "{\"success\": false, \"error\": \"Error message\", \"error_type\": \"ExceptionType\"}"
 }
 ```
 
-## Deployment to DigitalOcean
+## Deployment to AWS Lambda
 
 ### Prerequisites
 
-- DigitalOcean account
-- Terraform installed
-- DigitalOcean API token
+- AWS account
+- AWS CLI configured
+- Docker installed (for building container images)
 
-### Deploy with Terraform
+### Build and Push Container Image
 
-1. **Navigate to the terraform directory:**
+1. **Build the Docker image:**
    ```bash
-   cd terraform
+   docker build -t docling-lambda .
    ```
 
-2. **Create your variables file:**
+2. **Create an ECR repository:**
    ```bash
-   cp terraform.tfvars.example terraform.tfvars
+   aws ecr create-repository --repository-name docling-lambda --region us-east-1
    ```
 
-3. **Edit `terraform.tfvars` with your settings:**
-   ```hcl
-   do_token = "your-digitalocean-api-token"
-   git_repo = "https://github.com/yourusername/docling-nest"
-   git_branch = "master"
-   region = "nyc"
-   ```
-
-4. **Initialize and deploy:**
+3. **Authenticate Docker with ECR:**
    ```bash
-   terraform init
-   terraform plan
-   terraform apply
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
    ```
 
-5. **Get the function URL:**
+4. **Tag and push the image:**
    ```bash
-   terraform output function_url
+   docker tag docling-lambda:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/docling-lambda:latest
+   docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/docling-lambda:latest
    ```
 
-For detailed deployment instructions, see [terraform/README.md](terraform/README.md).
+### Create Lambda Function
 
-### Manual Deployment
+1. **Create the Lambda function from the container image:**
+   ```bash
+   aws lambda create-function \
+     --function-name docling-converter \
+     --package-type Image \
+     --code ImageUri=<account-id>.dkr.ecr.us-east-1.amazonaws.com/docling-lambda:latest \
+     --role arn:aws:iam::<account-id>:role/lambda-execution-role \
+     --memory-size 2048 \
+     --timeout 300
+   ```
 
-You can also deploy using the DigitalOcean CLI or web console:
+2. **Test the function:**
+   ```bash
+   aws lambda invoke \
+     --function-name docling-converter \
+     --payload '{"body": "{\"source_url\": \"https://arxiv.org/pdf/2408.09869\"}"}' \
+     response.json
+   ```
 
-```bash
-doctl serverless deploy .
-```
+### API Gateway Integration (Optional)
+
+To expose the Lambda function as an HTTP API:
+
+1. Create an HTTP API in API Gateway
+2. Add a POST route (e.g., `/convert`)
+3. Integrate with the Lambda function
+4. Enable CORS if needed
 
 ## Project Structure
 
 ```
 docling-nest/
+├── lambda_handler.py         # Lambda function handler
 ├── packages/
 │   └── docling/
 │       └── convert/
-│           ├── __main__.py       # Main function handler
 │           └── requirements.txt  # Python dependencies
 ├── terraform/
-│   ├── main.tf                   # Terraform configuration
-│   ├── variables.tf              # Terraform variables
-│   ├── terraform.tfvars.example  # Example configuration
-│   └── README.md                 # Deployment guide
-├── project.yml                   # DigitalOcean Functions config
-├── Dockerfile                    # Docker image for local dev
-├── docker-compose.yml            # Docker Compose setup
-└── test-local.sh                 # Local testing script
+│   ├── main.tf               # Terraform configuration
+│   ├── variables.tf          # Terraform variables
+│   └── README.md             # Deployment guide
+├── Dockerfile                # AWS Lambda container image
+├── docker-compose.yml        # Local Lambda RIE setup
+└── test_lambda.sh            # Local testing script
 ```
 
 ## Development
@@ -172,36 +178,32 @@ docling-nest/
 
 - Python 3.11
 - Docker and Docker Compose (for local development)
-- Terraform (for deployment)
-
-### Adding Dependencies
-
-Add Python packages to `packages/docling/convert/requirements.txt`:
-
-```txt
-docling>=2.0.0
-your-package>=1.0.0
-```
+- AWS CLI (for deployment)
 
 ### Testing Locally
 
-The local Docker setup includes a Flask wrapper that mimics the DigitalOcean Functions runtime:
+The local Docker setup uses AWS Lambda Runtime Interface Emulator (RIE) to simulate the Lambda environment:
 
 ```bash
-# Start the service
+# Start the Lambda emulator
 docker-compose up --build
 
 # In another terminal, run tests
-./test-local.sh
+./test_lambda.sh
+
+# Or run specific tests
+./test_lambda.sh url      # Test URL-based conversion
+./test_lambda.sh base64   # Test base64 document conversion
+./test_lambda.sh error    # Test error handling
 ```
 
-### Function Configuration
+### Lambda Configuration
 
-Modify `project.yml` to adjust function settings:
+Recommended Lambda settings:
 
-- `timeout`: Maximum execution time (default: 300000ms = 5 minutes)
-- `memory`: Memory allocation (default: 2048MB)
-- Environment variables
+- **Memory:** 2048 MB (Docling's ML models require significant memory)
+- **Timeout:** 300 seconds (5 minutes, for processing large documents)
+- **Ephemeral storage:** 512 MB (default is sufficient)
 
 ## Supported Document Formats
 
@@ -218,16 +220,14 @@ See the [Docling documentation](https://github.com/docling-project/docling) for 
 
 ## Cost Estimation
 
-DigitalOcean Functions pricing is based on GB-seconds of execution:
+AWS Lambda pricing is based on:
 
-- **Free tier:** 90,000 GB-seconds per month
-- **Additional usage:** $0.0000185 per GB-second
+- **Requests:** $0.20 per 1 million requests
+- **Duration:** $0.0000166667 per GB-second (for 2GB memory)
 
 With 2GB memory allocation:
-- ~750 seconds (12.5 minutes) of execution in the free tier
-- Each 30-second conversion costs approximately $0.001
-
-See the [Terraform README](terraform/README.md) for detailed cost analysis.
+- A 30-second conversion costs approximately $0.001
+- Free tier includes 400,000 GB-seconds per month
 
 ## Troubleshooting
 
@@ -240,19 +240,21 @@ See the [Terraform README](terraform/README.md) for detailed cost analysis.
 **Conversion fails:**
 - Some documents may require additional system dependencies
 - Check the Docling logs for specific errors
-- Increase memory allocation if needed
+- Ensure the Lambda has sufficient memory
 
 ### Deployment Issues
 
 **Function timeout:**
-- Increase timeout in `project.yml`
+- Increase Lambda timeout (max 900 seconds)
 - Large documents may take longer to process
 
 **Memory errors:**
-- Increase memory allocation in `project.yml`
-- Docling's ML models require significant memory
+- Increase Lambda memory allocation
+- Docling's ML models require at least 2GB memory
 
-**See [terraform/README.md](terraform/README.md) for deployment-specific troubleshooting.**
+**Cold start latency:**
+- First invocation may be slow (30-60 seconds) due to model loading
+- Consider provisioned concurrency for production workloads
 
 ## Contributing
 
@@ -265,5 +267,5 @@ This project is provided as-is. The Docling library is licensed under the MIT Li
 ## Resources
 
 - [Docling GitHub Repository](https://github.com/docling-project/docling)
-- [DigitalOcean Functions Documentation](https://docs.digitalocean.com/products/functions/)
-- [Terraform DigitalOcean Provider](https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs)
+- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
+- [AWS Lambda Container Images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)
