@@ -15,7 +15,7 @@ RUN yum update -y && \
     rm -rf /var/cache/yum
 
 # Copy requirements and install Python dependencies
-COPY packages/docling/convert/requirements.txt ${LAMBDA_TASK_ROOT}/
+COPY requirements.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
 # Copy Lambda handler code

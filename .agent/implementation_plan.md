@@ -31,7 +31,19 @@ Refactor the DigitalOcean serverless function to an AWS Lambda function that imp
 ### Task 5: Clean up old DigitalOcean files ✅
 - [x] Remove or archive `.do/app.yaml`
 - [x] Remove or archive `project.yml`
-- [ ] Update any remaining references (README still references DigitalOcean - separate task)
+- [x] Update any remaining references (README still references DigitalOcean - separate task)
+
+### Task 6: Update README documentation ✅
+- [x] Update main README.md for AWS Lambda deployment
+- [x] Update terraform/README.md to note legacy status and redirect to main README
+- [x] Document Lambda invocation format and ECR deployment
+- [x] Update local testing documentation for Lambda RIE
+- [x] Update cost estimation for AWS Lambda pricing
+
+
+### Task 7: Remove DO package ✅
+- [x] Move requirements.txt to top level and update Dockerfile references
+- [x] Remove digitalocean docling package directory
 
 ## Progress Notes
 - Task 1 completed: Created lambda_handler.py with proper Lambda integration (commit fa5977a)
@@ -39,3 +51,4 @@ Refactor the DigitalOcean serverless function to an AWS Lambda function that imp
 - Task 3 completed: Updated docker-compose.yml for Lambda RIE local testing (commit 0d69392)
 - Task 4 completed: Created test_lambda.sh with URL, base64, and error handling tests (commit f25e03c)
 - Task 5 completed: Removed .do/app.yaml and project.yml (DigitalOcean-specific config files)
+- Task 6 completed: Updated README.md and terraform/README.md for AWS Lambda (commit 887f87c)
