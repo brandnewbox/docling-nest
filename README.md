@@ -159,17 +159,14 @@ To expose the Lambda function as an HTTP API:
 ```
 docling-nest/
 ├── lambda_handler.py         # Lambda function handler
-├── packages/
-│   └── docling/
-│       └── convert/
-│           └── requirements.txt  # Python dependencies
-├── terraform/
-│   ├── main.tf               # Terraform configuration
-│   ├── variables.tf          # Terraform variables
-│   └── README.md             # Deployment guide
+├── requirements.txt          # Python dependencies
 ├── Dockerfile                # AWS Lambda container image
 ├── docker-compose.yml        # Local Lambda RIE setup
-└── test_lambda.sh            # Local testing script
+├── test_lambda.sh            # Local testing script
+└── terraform/                # Legacy Terraform configuration
+    ├── main.tf
+    ├── variables.tf
+    └── README.md
 ```
 
 ## Development
