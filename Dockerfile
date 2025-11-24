@@ -1,50 +1,25 @@
-FROM python:3.11-slim
+# AWS Lambda Python base image for Docling document conversion
+FROM public.ecr.aws/lambda/python:3.11
 
 # Install system dependencies for document processing
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
+# Lambda base images use Amazon Linux 2, which uses yum
+RUN yum update -y && \
+    yum install -y \
+    mesa-libGL \
+    glib2 \
+    libSM \
+    libXext \
+    libXrender \
+    libgomp \
+    && yum clean all && \
+    rm -rf /var/cache/yum
 
 # Copy requirements and install Python dependencies
-COPY packages/docling/convert/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY packages/docling/convert/requirements.txt ${LAMBDA_TASK_ROOT}/
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
-# Copy function code
-COPY packages/docling/convert/__main__.py ./docling_handler.py
+# Copy Lambda handler code
+COPY lambda_handler.py ${LAMBDA_TASK_ROOT}/
 
-# Create a simple Flask wrapper for local testing
-RUN pip install --no-cache-dir flask
-
-# Create a Flask app wrapper
-RUN echo 'from flask import Flask, request, jsonify\n\
-import docling_handler\n\
-\n\
-app = Flask(__name__)\n\
-\n\
-@app.route("/", methods=["GET"])\n\
-def health():\n\
-    return jsonify({"status": "healthy", "service": "docling-converter"})\n\
-\n\
-@app.route("/convert", methods=["POST"])\n\
-def convert():\n\
-    args = request.get_json() or {}\n\
-    result = docling_handler.main(args)\n\
-    status_code = result.get("statusCode", 200)\n\
-    body = result.get("body", result)\n\
-    return jsonify(body), status_code\n\
-\n\
-if __name__ == "__main__":\n\
-    app.run(host="0.0.0.0", port=8080)\n\
-' > app.py
-
-EXPOSE 8080
-
-CMD ["python", "app.py"]
+# Set the CMD to the Lambda handler
+CMD ["lambda_handler.handler"]
