@@ -1,18 +1,14 @@
 version: '3.8'
 
 services:
-  docling:
+  docling-lambda:
     build: .
     ports:
-      - "8080:8080"
+      - "9000:8080"  # Lambda RIE exposes port 8080 internally
     environment:
       - LOG_LEVEL=INFO
     volumes:
-      # Mount the source code for development
-      - ./packages/docling/convert/__main__.py:/app/__main__.py
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      # Mount the handler for development
+      - ./lambda_handler.py:/var/task/lambda_handler.py
+    # Lambda RIE is included in the AWS Lambda base image
+    # Invoke via: curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"body": "{\"source_url\": \"https://arxiv.org/pdf/2408.09869\"}"}'
