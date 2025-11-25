@@ -5,10 +5,24 @@ This function accepts documents via HTTP POST (API Gateway) or direct Lambda inv
 and converts them to markdown format using the Docling library.
 """
 
+import os
+
+# Set cache directories BEFORE importing any libraries that use them
+# This must happen before importing docling, torch, transformers, etc.
+#
+# Models are pre-downloaded to /var/task/models during Docker build.
+# We use HF_HUB_OFFLINE=1 to prevent any writes to the cache directory.
+os.environ.setdefault("HOME", "/tmp")
+os.environ.setdefault("HF_HOME", "/var/task/models/hf_home")
+os.environ.setdefault("HF_HUB_OFFLINE", "1")  # Prevents writes to HF cache
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")  # Prevents transformers from downloading
+os.environ.setdefault("TORCH_HOME", "/var/task/models/torch_home")
+os.environ.setdefault("XDG_CACHE_HOME", "/tmp/.cache")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/.matplotlib")
+
 import json
 import base64
 import tempfile
-import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 
