@@ -26,50 +26,63 @@ An AWS Lambda function that exposes the [Docling](https://github.com/docling-pro
 
    Or manually:
    ```bash
-   # Convert from URL
+   # Convert from URL (returns JSON with markdown)
    curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
      -H "Content-Type: application/json" \
      -d '{
+       "path": "/",
+       "httpMethod": "POST",
        "body": "{\"source_url\": \"https://arxiv.org/pdf/2408.09869\"}"
      }'
+
+   # Export with images (returns base64-encoded zip)
+   curl -s -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "path": "/full",
+       "httpMethod": "POST",
+       "body": "{\"source_url\": \"https://arxiv.org/pdf/2408.09869\"}"
+     }' | jq -r '.body' | base64 -d > output.zip
 
    # Convert from base64-encoded document
    curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" \
      -H "Content-Type: application/json" \
      -d '{
+       "path": "/",
+       "httpMethod": "POST",
        "body": "{\"document\": \"BASE64_ENCODED_CONTENT\", \"filename\": \"document.pdf\"}"
      }'
    ```
 
 ## API Reference
 
-### Lambda Invocation
+The Lambda function provides two endpoints for document conversion.
 
-The Lambda function accepts events with the following format (API Gateway proxy integration):
+### Common Request Format
 
-#### Request Body
+Both endpoints accept the same input parameters (inside the body JSON):
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_url` | string | Either this or `document` | URL to the document to convert |
+| `document` | string | Either this or `source_url` | Base64-encoded document content |
+| `filename` | string | No | Original filename (defaults to `document.pdf`) |
+
+---
+
+### POST / — Convert to Markdown
+
+Converts a document and returns the markdown content as JSON.
+
+#### Request
 
 ```json
 {
+  "path": "/",
+  "httpMethod": "POST",
   "body": "{\"source_url\": \"https://example.com/document.pdf\"}"
 }
 ```
-
-Or for base64-encoded documents:
-
-```json
-{
-  "body": "{\"document\": \"base64_encoded_content\", \"filename\": \"document.pdf\"}"
-}
-```
-
-**Parameters (inside the body JSON):**
-
-- `source_url` (string, optional): URL to the document to convert
-- `document` (string, optional): Base64-encoded document content
-- `filename` (string, optional): Original filename (used when providing base64 content)
-
-**Note:** Either `source_url` or `document` must be provided.
 
 #### Response
 
@@ -84,6 +97,64 @@ Or for base64-encoded documents:
   "body": "{\"success\": true, \"markdown\": \"# Converted Document\\n\\n...\", \"metadata\": {\"num_pages\": 10, \"source\": \"https://example.com/document.pdf\"}}"
 }
 ```
+
+**Response body fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | `true` if conversion succeeded |
+| `markdown` | string | The converted markdown content |
+| `metadata.num_pages` | number | Number of pages in the document |
+| `metadata.source` | string | The source URL or filename |
+
+---
+
+### POST /full — Markdown with Images
+
+Converts a document and returns a zip file containing the markdown with extracted images.
+
+#### Request
+
+```json
+{
+  "path": "/export",
+  "httpMethod": "POST",
+  "body": "{\"source_url\": \"https://example.com/document.pdf\"}"
+}
+```
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/zip",
+    "Content-Disposition": "attachment; filename=\"document.zip\"",
+    "Access-Control-Allow-Origin": "*"
+  },
+  "body": "<base64-encoded-zip-content>",
+  "isBase64Encoded": true
+}
+```
+
+**Zip file structure (flat):**
+```
+document.zip
+├── document.md        # Markdown with relative image references
+├── image_000000_xxx.png
+├── image_000001_xxx.png
+└── ...
+```
+
+The markdown file contains relative image references like `![Image](image_000000_xxx.png)` that correspond to the extracted image files in the zip.
+
+---
+
+### Error Responses
+
+Both endpoints return errors in the same format:
 
 **Error (400/500):**
 ```json
