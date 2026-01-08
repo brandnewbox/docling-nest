@@ -154,6 +154,35 @@ To expose the Lambda function as an HTTP API:
 3. Integrate with the Lambda function
 4. Enable CORS if needed
 
+## CI/CD with GitHub Actions
+
+This project uses GitHub Actions to automatically deploy to AWS Lambda on every push to `main`.
+
+### GitHub Configuration
+
+The workflow requires these secrets and variables in your GitHub repository settings:
+
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
+- `AWS_ROLE_ARN` - The IAM role ARN for GitHub Actions to assume
+
+**Variables** (Settings → Secrets and variables → Actions → Variables):
+- `AWS_REGION` - AWS region (e.g., `us-east-1`)
+- `ECR_REPOSITORY` - ECR repository name
+- `LAMBDA_FUNCTION_NAME` - Lambda function name
+
+### AWS IAM Configuration
+
+The GitHub Actions workflow uses OIDC authentication. The IAM resources can be found in the AWS Console:
+
+| Resource | Location |
+|----------|----------|
+| OIDC Provider | IAM → Identity providers → `token.actions.githubusercontent.com` |
+| IAM Role | IAM → Roles → `github-actions-docling-nest` |
+| Trust Policy | IAM → Roles → `github-actions-docling-nest` → Trust relationships |
+| Permissions | IAM → Roles → `github-actions-docling-nest` → Permissions → `docling-nest-deploy` |
+
+To modify permissions (e.g., add S3 access), edit the inline policy `docling-nest-deploy` on the IAM role.
+
 ## Project Structure
 
 ```
